@@ -1,0 +1,258 @@
+--FMC LOGS
+CREATE TABLE surv_boss.geo_fmclogs (
+	id INTEGER,
+	gps_dt TIMESTAMP WITH TIME ZONE,
+	flight_id CHARACTER VARYING(36),
+	latitude NUMERIC(22,10),
+	longitude NUMERIC(22,10),
+	altitude NUMERIC(22,10),
+	speed NUMERIC(22,10),
+	heading_gps NUMERIC(22,10),
+	roll NUMERIC(22,10),
+	pitch NUMERIC(22,10),
+	heading NUMERIC(22,10),
+	baroalt NUMERIC(22,10),
+	effort CHARACTER VARYING(3),
+	CONSTRAINT PK_ID1 PRIMARY KEY (id)
+) 
+
+--DETECT
+CREATE TABLE surv_boss.tbl_hotspot_detect (
+	hotspot_id INTEGER,
+    	hotspot_time CHARACTER VARYING(20),
+    	thermal_image CHARACTER VARYING(255),
+	center_line_cross CHARACTER VARYING(5),
+	threshold_cross CHARACTER VARYING(3),
+	threshold_value NUMERIC(5,1),
+	flight_id CHARACTER VARYING(12),
+	camera_id CHARACTER VARYING(5),
+    	flight_date DATE,
+	frame INTEGER,
+	user_id CHARACTER VARYING(255),
+   	stats_filename CHARACTER VARYING(255),
+	disturb CHARACTER VARYING(3),
+	detect_method CHARACTER VARYING(20),
+   	hotspot_dt TIMESTAMP WITH TIME ZONE,
+	CONSTRAINT pk_hotspot_detect PRIMARY KEY (hotspot_id));
+
+--DETECT REDO
+CREATE TABLE surv_boss.tbl_hotspot_detect_redo (
+	hotspot_id INTEGER,
+    	hotspot_time CHARACTER VARYING(20),
+    	thermal_image CHARACTER VARYING(255),
+	center_line_cross CHARACTER VARYING(5),
+	threshold_cross CHARACTER VARYING(3),
+	threshold_value NUMERIC(5,1),
+	flight_id CHARACTER VARYING(12),
+	camera_id CHARACTER VARYING(5),
+    	flight_date DATE,
+	frame INTEGER,
+	user_id CHARACTER VARYING(255),
+   	stats_filename CHARACTER VARYING(255),
+	disturb CHARACTER VARYING(3),
+	detect_method CHARACTER VARYING(20),
+   	hotspot_dt TIMESTAMP WITH TIME ZONE,
+	CONSTRAINT pk_hotspot_detect_redo PRIMARY KEY (hotspot_id));
+
+--MATCH
+CREATE TABLE surv_boss.tbl_hotspot_match (
+	hotspot_id INTEGER,
+	slr_match CHARACTER VARYING(20),
+	slr_image CHARACTER VARYING(41),
+	hotspot_found CHARACTER VARYING(20),
+	hotspot_type CHARACTER VARYING(20),
+	num_seals CHARACTER VARYING(20),
+	fog CHARACTER VARYING(20),
+	match_uncertainty CHARACTER VARYING(20),
+	slr_data CHARACTER VARYING(20),
+	notes CHARACTER VARYING(255),
+	user_ud CHARACTER VARYING(255),
+	match_dt TIMESTAMP WITH TIME ZONE,
+	match_id INTEGER,
+	disturb CHARACTER VARYING(3),
+	species_id CHARACTER VARYING(20),
+	species_conf CHARACTER VARYING(20),
+	gross_age CHARACTER VARYING(20),
+	gross_age_conf CHARACTER VARYING(20),
+	species_alt CHARACTER VARYING(20),
+	gross_age_alt CHARACTER VARYING(20),
+	species_alt_conf CHARACTER VARYING(20),
+	gross_age_alt_conf CHARACTER VARYING(20),
+	species_user CHARACTER VARYING(20),
+	CONSTRAINT pk_match PRIMARY KEY (match_id),
+	CONSTRAINT fk_match_detect FOREIGN KEY (hotspot_id) REFERENCES surv_boss.tbl_hotspot_detect(hotspot_id) ON DELETE CASCADE);
+
+--SPECIES ID
+CREATE TABLE surv_boss.tbl_species_id (
+	assign_id INTEGER,
+	age_class CHARACTER VARYING(20),
+	species_id CHARACTER VARYING(20),
+	species_alt  CHARACTER VARYING(20),
+	init_id_by CHARACTER VARYING(20),
+	last_edit_by CHARACTER VARYING(20),
+	torso_visible CHARACTER VARYING(3),
+	foreflip_visible CHARACTER VARYING(3),
+	rearflip_visible CHARACTER VARYING(3),
+	body_shape CHARACTER VARYING(20),
+	foreflip_char CHARACTER VARYING(20),
+	long_neck CHARACTER VARYING(3),
+	long_rearflip CHARACTER VARYING(3),
+	slender_post CHARACTER VARYING(3),
+	pelage CHARACTER VARYING(20),
+	small_head CHARACTER VARYING(3),
+	red_face CHARACTER VARYING(3),
+	beard_vibrisae CHARACTER VARYING(3),
+	t_head CHARACTER VARYING(3),
+	muzzle_shape CHARACTER VARYING(20),
+	seal_size CHARACTER VARYING(20),
+	lanugo_visible CHARACTER VARYING(3),
+	lanugo_color CHARACTER VARYING(20),
+	tracks_visible CHARACTER VARYING(3),
+	track_path CHARACTER VARYING(20),
+	track_pattern CHARACTER VARYING(20),
+	triad_group CHARACTER VARYING(3),
+	nonpup_group CHARACTER VARYING(3),
+	assoc CHARACTER VARYING(3),
+	assoc_3len CHARACTER VARYING(3),
+	near_hole CHARACTER VARYING(3),
+	floe_size CHARACTER VARYING(20),
+	edge_prox CHARACTER VARYING(20),
+	age_class_alt CHARACTER VARYING(20),
+	gross_age_conf CHARACTER VARYING(20),
+	gross_age_alt_conf CHARACTER VARYING(20),
+	gross_age CHARACTER VARYING(20),
+	gross_age_alt CHARACTER VARYING(20),
+	head_visible CHARACTER VARYING(3),
+	species_conf CHARACTER VARYING(20),
+	species_alt_conf CHARACTER VARYING(20),
+	notes CHARACTER VARYING(255),
+	assoc_23len CHARACTER VARYING(3),
+	neck_band CHARACTER VARYING(3),
+	seal_id INTEGER,
+	hotspot_id INTEGER,
+	CONSTRAINT pk_species_id PRIMARY KEY (assign_id));
+
+--Hotspot species id view
+CREATE VIEW surv_boss.hotspot_species_id AS (
+with h as (
+SELECT d.hotspot_id, s.seal_id, m.hotspot_found, m.hotspot_type hotspot_type, d.hotspot_dt hotspot_dt,
+  First_Value(m.slr_image) 
+  OVER (PARTITION BY m.hotspot_id, species_user, init_id_by ORDER BY m.slr_image) img_select,
+  m.slr_image, d.flight_id, d.camera_id, num_seals,
+  (CASE 
+    WHEN m.species_id IS NULL AND s.species_id IS NULL THEN NULL
+    WHEN m.species_id IS NULL AND s.species_id IS NOT NULL THEN s.species_id
+    ELSE m.species_id
+    END) species,
+  (CASE 
+    WHEN m.species_conf IS NULL AND s.species_conf IS NULL THEN NULL
+    WHEN m.species_conf IS NULL AND s.species_conf IS NOT NULL THEN s.species_conf
+    ELSE m.species_conf
+    END) species_conf,
+  (CASE
+    WHEN m.species_user IS NULL AND s.init_id_by IS NULL THEN NULL
+    WHEN m.species_user IS NULL AND s.init_id_by IS NOT NULL THEN s.init_id_by
+    ELSE m.species_user
+    END) species_user
+FROM surv_boss.tbl_hotspot_detect d
+LEFT JOIN surv_boss.tbl_hotspot_match m ON
+m.hotspot_id = d.hotspot_id
+LEFT JOIN surv_boss.tbl_species_id s ON
+s.hotspot_id = m.hotspot_id)
+
+SELECT hotspot_id, seal_id, hotspot_found, hotspot_type, hotspot_dt, slr_image, flight_id,
+camera_id, num_seals, species, species_conf, species_user 
+FROM h
+WHERE slr_image = img_select);
+
+--Hotspots view
+CREATE VIEW surv_boss.hotspot AS (
+WITH s AS (
+SELECT assign_id,
+  hotspot_id,
+  seal_id
+FROM surv_boss.tbl_species_id),
+
+/*
+This temporary table is the workhorse for interpolating values that
+can be used when there is not an exact match in time between the hotspot_dt
+and the gps_dt. This table uses the lead() function to determine the 'next'
+record and then average the gpslat and gpslong. These records are sorted
+by flightid then gps_dt.
+*/
+
+interp AS (
+SELECT d.hotspot_id, d.hotspot_dt,
+	prev_dt, next_dt,
+	q2.prev_lat, q2.next_lat,
+    q2.prev_lon, q2.next_lon
+FROM surv_boss.tbl_hotspot_detect d
+LEFT OUTER JOIN
+(SELECT fmc.flight_id,
+        fmc.gps_dt AS prev_dt,
+        fmc.latitude AS prev_lat,
+        fmc.longitude AS prev_lon,
+        lead(fmc.gps_dt,1) OVER (ORDER BY fmc.flight_id, fmc.gps_dt) AS next_dt,
+        lead(fmc.latitude,1) OVER (ORDER BY fmc.flight_id, fmc.gps_dt) AS next_lat,
+        lead(fmc.longitude,1) OVER (ORDER BY fmc.flight_id, fmc.gps_dt) AS next_lon
+        FROM surv_boss.geo_fmclogs fmc) q2
+        ON d.flight_id = q2.flight_id AND 
+        d.hotspot_dt BETWEEN q2.prev_dt AND q2.next_dt),
+
+effort AS (
+		SELECT d.hotspot_id,
+        q2.effort
+        FROM surv_boss.tbl_hotspot_detect d
+LEFT OUTER JOIN
+(SELECT fmc.flight_id,
+        fmc.gps_dt AS prev_dt,
+        lead(fmc.gps_dt,1) OVER (ORDER BY fmc.flight_id, fmc.gps_dt) AS next_dt,
+        fmc.effort
+        FROM surv_boss.geo_fmclogs fmc) q2
+ON d.flight_id = q2.flight_id AND 
+d.hotspot_dt BETWEEN q2.prev_dt AND q2.next_dt)
+
+/*
+With our temporary table created, now on to the primary query. Like assignid,
+there can be multiple sealids within a hotspot. Here, we also choose one of
+them randomly. The other selections should be pretty straight forward. The
+gpslat,gpslong and gpsalt values are averaged as part of the group by b/c there
+could be more than one gps record that matches the same hotspot_dt (when
+matched to the second).
+*/
+
+SELECT d.hotspot_id, m.hotspot_found, 
+		m.hotspot_type, d.hotspot_dt, gps_dt,
+		m.slr_image, d.flight_id, d.camera_id,
+		latitude, ROUND(interp.interp_lat,6) interp_lat,
+		longitude, ROUND(interp.interp_lon,6) interp_lon,
+		altitude, num_seals,
+		(CASE 
+			WHEN m.species_id IS NULL AND i.species_id IS NULL THEN NULL
+			WHEN m.species_id IS NULL AND i.species_id IS NOT NULL THEN i.species_id
+			ELSE m.species_id
+		END) species,
+	(CASE 
+		WHEN m.species_conf IS NULL AND i.species_conf IS NULL THEN NULL
+		WHEN m.species_conf IS NULL AND i.species_conf IS NOT NULL THEN i.species_conf
+		ELSE m.species_conf
+		END) species_conf,
+	(CASE
+		WHEN m.species_user IS NULL AND i.init_id_by IS NULL THEN NULL
+		WHEN m.species_user IS NULL AND i.init_id_by IS NOT NULL THEN i.init_id_by
+		ELSE m.species_user
+		END) species_user, effort.effort
+FROM surv_boss.tbl_hotspot_detect d
+LEFT JOIN surv_boss.tbl_hotspot_match m on d.hotspot_id = m.hotspot_id
+LEFT JOIN interp ON d.hotspot_id = interp.hotspot_id
+LEFT JOIN effort ON d.hotspot_id = effort.hotspot_id
+LEFT JOIN s ON s.hotspot_id = m.hotspot_id AND s.seal_id = seal_id
+LEFT JOIN surv_boss.tbl_species_id i ON s.assign_id = i.assign_id
+LEFT JOIN surv_boss.geo_fmclogs f
+--CAST AS DATE truncates to the second
+ON CAST(f.gps_dt AS DATE) = CAST(d.hotspot_dt AS DATE) 
+AND f.flight_id = d.flight_id
+WHERE effort.effort = 'On' AND hotspot_found IS NOT NULL
+);
+
+

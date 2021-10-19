@@ -1,0 +1,60 @@
+create table surv_boss.geo_tracks_by_effort as (
+with z as (select *, row_number() over (order by flight_id, gps_dt) as id_dt
+from surv_boss.tbl_fmc_log
+where rec_type <> 'C'), 
+
+a as (select CAST(id_dt as int), flight_id, gps_dt, effort, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) AS geom,
+       dense_rank() over (partition by grp order by CAST(id_dt as int)) as row_num
+from (select t.*,
+             (row_number() over (order by CAST(id_dt as int)) -
+              row_number() over (partition by effort order by CAST(id_dt as int))
+             ) as grp
+      from z t
+     ) x
+where latitude <> 0 or longitude <> 0
+ORDER BY id_dt), 
+
+b as (select id_dt, flight_id, gps_dt, effort, row_number() over (order by id_dt) as effort_num
+from a
+where row_num = 1
+order by id_dt),
+
+c as (select b.id_dt, c.id_dt as next_id, b.flight_id, b.effort, b.effort_num
+from b, b as c 
+where b.effort_num = c.effort_num - 1),
+
+d as (select b.id_dt, c.id_dt as next_id, b.flight_id, b.effort, b.effort_num
+from b, b as c 
+where b.effort_num = c.effort_num + 1
+and b.effort_num = 341), 
+
+e as (select * from c 
+union
+select * from d),
+
+f as (
+select a.id_dt, a.flight_id, a.gps_dt, a.effort, a.geom, e.effort_num
+from a, e
+where a.id_dt >= e.id_dt and a.id_dt < e.next_id)
+
+select row_number() over (order by effort_num) as id, concat(extract(year from date_utc)::integer - 2000, "_", flight_id) as flight_id, effort, st_makeline(geom order by id_dt) as geom
+from f
+group by flight_id, effort, effort_num);
+
+ SELECT geo_tracks_by_effort.id,
+    geo_tracks_by_effort.flight_id,
+    geo_tracks_by_effort.geom
+   FROM surv_boss.geo_tracks_by_effort
+  WHERE geo_tracks_by_effort.effort::text = 'On'::text;
+  
+   SELECT geo_tracks_by_effort.id,
+    geo_tracks_by_effort.geom,
+    geo_tracks_by_effort.flight_id
+   FROM surv_boss.geo_tracks_by_effort
+  WHERE geo_tracks_by_effort.flight_id::text ~~ '12%'::text AND geo_tracks_by_effort.effort::text = 'On'::text;
+  
+   SELECT geo_tracks_by_effort.id,
+    geo_tracks_by_effort.geom,
+    geo_tracks_by_effort.flight_id
+   FROM surv_boss.geo_tracks_by_effort
+  WHERE geo_tracks_by_effort.flight_id::text ~~ '13%'::text AND geo_tracks_by_effort.effort::text = 'On'::text;

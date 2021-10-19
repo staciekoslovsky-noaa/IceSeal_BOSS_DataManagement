@@ -1,0 +1,344 @@
+ WITH i AS (
+         SELECT i.hotspot_id,
+            i.species_id,
+            i.species_conf,
+            i.gross_age,
+            i.gross_age_conf,
+            i.init_id_by,
+            n.num_seals
+           FROM ( SELECT tbl_species_id.hotspot_id,
+                    tbl_species_id.species_id,
+                    tbl_species_id.species_conf,
+                    tbl_species_id.gross_age,
+                    tbl_species_id.gross_age_conf,
+                    tbl_species_id.init_id_by
+                   FROM surv_boss.tbl_species_id
+                  WHERE tbl_species_id.init_id_by::text = 'GAVIN.BRADY'::text
+                UNION
+                 SELECT a.hotspot_id,
+                    a.species_id,
+                    a.species_conf,
+                    a.gross_age,
+                    a.gross_age_conf,
+                    a.init_id_by
+                   FROM ( SELECT tbl_species_id.hotspot_id,
+                            tbl_species_id.species_id,
+                            tbl_species_id.species_conf,
+                            tbl_species_id.gross_age,
+                            tbl_species_id.gross_age_conf,
+                            tbl_species_id.init_id_by,
+                            row_number() OVER (PARTITION BY tbl_species_id.hotspot_id ORDER BY (random())) AS rownum
+                           FROM surv_boss.tbl_species_id
+                          WHERE NOT (tbl_species_id.hotspot_id IN ( SELECT tbl_species_id_1.hotspot_id
+                                   FROM surv_boss.tbl_species_id tbl_species_id_1
+                                  WHERE tbl_species_id_1.init_id_by::text = 'GAVIN.BRADY'::text))) a
+                  WHERE a.rownum = 1) i
+             JOIN ( SELECT tbl_species_id.hotspot_id,
+                    max(tbl_species_id.seal_id) AS num_seals
+                   FROM surv_boss.tbl_species_id
+                  GROUP BY tbl_species_id.hotspot_id) n USING (hotspot_id)
+        ), ma AS (
+         SELECT a.hotspot_id,
+            a.hotspot_found,
+            a.hotspot_type,
+            a.slr_image,
+            a.thermal_image,
+            a.species_id,
+            a.species_conf,
+            a.gross_age,
+            a.gross_age_conf,
+            a.num_seals,
+            a.species_user
+           FROM ( SELECT tbl_hotspot_match.hotspot_id,
+                    tbl_hotspot_match.hotspot_found,
+                    tbl_hotspot_match.hotspot_type,
+                    tbl_hotspot_match.slr_image,
+                    tbl_hotspot_detect.thermal_image,
+                    tbl_hotspot_match.species_id,
+                    tbl_hotspot_match.species_conf,
+                    tbl_hotspot_match.gross_age,
+                    tbl_hotspot_match.gross_age_conf,
+                    tbl_hotspot_match.num_seals,
+                    tbl_hotspot_match.species_user,
+                    row_number() OVER (PARTITION BY tbl_hotspot_match.hotspot_id ORDER BY (random())) AS rownum
+                   FROM surv_boss.tbl_hotspot_match
+                     JOIN surv_boss.tbl_hotspot_detect USING (hotspot_id)) a
+          WHERE a.rownum = 1
+        ), m AS (
+         SELECT ma.hotspot_id,
+            ma.hotspot_found,
+            ma.hotspot_type,
+            ma.slr_image,
+                CASE
+                    WHEN ma.species_id IS NULL AND i.species_id IS NULL THEN NULL::character varying
+                    WHEN ma.species_id IS NULL AND i.species_id IS NOT NULL THEN i.species_id
+                    ELSE ma.species_id
+                END AS species,
+                CASE
+                    WHEN ma.species_conf IS NULL AND i.species_conf IS NULL THEN NULL::character varying
+                    WHEN ma.species_conf IS NULL AND i.species_conf IS NOT NULL THEN i.species_conf
+                    ELSE ma.species_conf
+                END AS species_conf,
+                CASE
+                    WHEN ma.gross_age IS NULL AND i.gross_age IS NULL THEN NULL::character varying
+                    WHEN ma.gross_age IS NULL AND i.gross_age IS NOT NULL THEN i.gross_age
+                    ELSE ma.gross_age
+                END AS gross_age,
+                CASE
+                    WHEN ma.gross_age_conf IS NULL AND i.gross_age_conf IS NULL THEN NULL::character varying
+                    WHEN ma.gross_age_conf IS NULL AND i.gross_age_conf IS NOT NULL THEN i.gross_age_conf
+                    ELSE ma.gross_age_conf
+                END AS gross_age_conf,
+                CASE
+                    WHEN ma.num_seals IS NULL AND i.num_seals IS NULL THEN NULL::character varying
+                    WHEN ma.num_seals IS NULL AND i.num_seals IS NOT NULL THEN i.num_seals::character varying(20)
+                    ELSE ma.num_seals
+                END AS num_seals,
+                CASE
+                    WHEN ma.species_user IS NULL AND i.init_id_by IS NULL THEN NULL::character varying
+                    WHEN ma.species_user IS NULL AND i.init_id_by IS NOT NULL THEN i.init_id_by
+                    ELSE ma.species_user
+                END AS species_user
+           FROM ma
+             LEFT JOIN i USING (hotspot_id)
+          ORDER BY ma.hotspot_id
+        ), d AS (
+         SELECT tbl_hotspot_detect.hotspot_id,
+            tbl_hotspot_detect.flight_id,
+            tbl_hotspot_detect.camera_id,
+            tbl_hotspot_detect.hotspot_dt,
+            m.hotspot_found,
+            m.hotspot_type,
+            m.slr_image,
+            tbl_hotspot_detect.thermal_image,
+            m.species,
+            m.species_conf,
+            m.gross_age,
+            m.gross_age_conf,
+            m.num_seals,
+            m.species_user
+           FROM surv_boss.tbl_hotspot_detect
+             LEFT JOIN m USING (hotspot_id)
+          ORDER BY tbl_hotspot_detect.hotspot_id
+        ), g AS (
+         SELECT d.flight_id,
+            d.gps_dt,
+            (d.lat_a + d.lat_b) / 2::numeric AS latitude,
+            (d.long_a + d.long_b) / 2::numeric AS longitude,
+            (d.alt_a + d.alt_b) / 2::numeric AS altitude,
+            d.effort_a AS effort
+           FROM ( SELECT c.flight_id,
+                    c.gps_dt,
+                    c.lat_a,
+                    c.long_a,
+                    c.alt_a,
+                    c.lat_b,
+                    c.long_b,
+                    c.alt_b,
+                    row_number() OVER (PARTITION BY c.flight_id, c.gps_dt ORDER BY (random())) AS rownum,
+                    c.effort_a
+                   FROM ( SELECT a.flight_id,
+                            a.gps_dt,
+                            a.lat_a,
+                            a.long_a,
+                            a.alt_a,
+                            a.effort_a,
+                            b.lat_b,
+                            b.long_b,
+                            b.alt_b,
+                            b.effort_b
+                           FROM ( SELECT geo_fmc_log.flight_id,
+                                    geo_fmc_log.gps_dt,
+                                    geo_fmc_log.latitude AS lat_a,
+                                    geo_fmc_log.longitude AS long_a,
+                                    geo_fmc_log.altitude AS alt_a,
+                                    geo_fmc_log.effort AS effort_a
+                                   FROM surv_boss.geo_fmc_log
+                                     JOIN ( SELECT geo_fmc_log_1.flight_id,
+    geo_fmc_log_1.gps_dt
+   FROM surv_boss.geo_fmc_log geo_fmc_log_1
+  WHERE geo_fmc_log_1.rec_type::text <> 'C'::text
+  GROUP BY geo_fmc_log_1.flight_id, geo_fmc_log_1.gps_dt
+ HAVING count(geo_fmc_log_1.gps_dt) > 1) x USING (flight_id, gps_dt)) a
+                             JOIN ( SELECT geo_fmc_log.flight_id,
+                                    geo_fmc_log.gps_dt,
+                                    geo_fmc_log.latitude AS lat_b,
+                                    geo_fmc_log.longitude AS long_b,
+                                    geo_fmc_log.altitude AS alt_b,
+                                    geo_fmc_log.effort AS effort_b
+                                   FROM surv_boss.geo_fmc_log
+                                     JOIN ( SELECT geo_fmc_log_1.flight_id,
+    geo_fmc_log_1.gps_dt
+   FROM surv_boss.geo_fmc_log geo_fmc_log_1
+  WHERE geo_fmc_log_1.rec_type::text <> 'C'::text
+  GROUP BY geo_fmc_log_1.flight_id, geo_fmc_log_1.gps_dt
+ HAVING count(geo_fmc_log_1.gps_dt) > 1) x USING (flight_id, gps_dt)) b USING (flight_id, gps_dt)
+                          WHERE a.lat_a <> b.lat_b AND a.long_a <> b.long_b) c) d
+          WHERE d.rownum = 1
+        UNION
+         SELECT geo_fmc_log.flight_id,
+            geo_fmc_log.gps_dt,
+            geo_fmc_log.latitude AS lat_b,
+            geo_fmc_log.longitude AS long_b,
+            geo_fmc_log.altitude AS alt_b,
+            geo_fmc_log.effort
+           FROM surv_boss.geo_fmc_log
+             JOIN ( SELECT geo_fmc_log_1.flight_id,
+                    geo_fmc_log_1.gps_dt
+                   FROM surv_boss.geo_fmc_log geo_fmc_log_1
+                  WHERE geo_fmc_log_1.rec_type::text <> 'C'::text
+                  GROUP BY geo_fmc_log_1.flight_id, geo_fmc_log_1.gps_dt
+                 HAVING count(geo_fmc_log_1.gps_dt) = 1) x USING (flight_id, gps_dt)
+        ), p AS (
+         SELECT d.hotspot_id,
+            d.flight_id,
+            d.camera_id,
+            d.hotspot_dt,
+            d.hotspot_found,
+            d.hotspot_type,
+            d.slr_image,
+            d.thermal_image,
+            d.species,
+            d.species_conf,
+            d.gross_age,
+            d.gross_age_conf,
+            d.num_seals,
+            d.species_user,
+            g.gps_dt,
+            g.latitude,
+            g.longitude,
+            g.altitude,
+            g.effort
+           FROM d
+             LEFT JOIN g ON d.flight_id::text = g.flight_id AND d.hotspot_dt = g.gps_dt
+        ), y AS (
+         SELECT p.hotspot_id,
+            p.flight_id,
+            p.camera_id,
+            p.hotspot_dt,
+            p.hotspot_found,
+            p.hotspot_type,
+            p.slr_image,
+            p.thermal_image,
+            p.species,
+            p.species_conf,
+            p.gross_age,
+            p.gross_age_conf,
+            p.num_seals,
+            p.species_user,
+            p.gps_dt,
+            p.latitude,
+            p.longitude,
+            p.altitude,
+            p.effort,
+            'N'::character(3) AS interp
+           FROM p
+          WHERE p.gps_dt IS NOT NULL
+        ), final AS (
+         SELECT interp.hotspot_id,
+            interp.flight_id,
+            interp.camera_id,
+            interp.hotspot_dt,
+            interp.hotspot_found,
+            interp.hotspot_type,
+            interp.slr_image,
+            interp.thermal_image,
+            interp.species,
+            interp.species_conf,
+            interp.gross_age,
+            interp.gross_age_conf,
+            interp.num_seals,
+            interp.species_user,
+            interp.gps_dt,
+            interp.latitude,
+            interp.longitude,
+            interp.altitude,
+            interp.effort,
+            interp.interp
+           FROM ( SELECT p.hotspot_id,
+                    p.flight_id,
+                    p.camera_id,
+                    p.hotspot_dt,
+                    p.hotspot_found,
+                    p.hotspot_type,
+                    p.slr_image,
+                    p.thermal_image,
+                    p.species,
+                    p.species_conf,
+                    p.gross_age,
+                    p.gross_age_conf,
+                    p.num_seals,
+                    p.species_user,
+                    p.hotspot_dt AS gps_dt,
+                    (q2.prev_lat + q2.next_lat) / 2::numeric AS latitude,
+                    (q2.prev_lon + q2.next_lon) / 2::numeric AS longitude,
+                    (q2.prev_alt + q2.next_alt) / 2::numeric AS altitude,
+                    q2.effort,
+                    'Y'::character(3) AS interp
+                   FROM p
+                     LEFT JOIN ( SELECT g.flight_id,
+                            g.gps_dt AS prev_dt,
+                            g.latitude AS prev_lat,
+                            g.longitude AS prev_lon,
+                            g.altitude AS prev_alt,
+                            lead(g.gps_dt, 1) OVER (ORDER BY g.flight_id, g.gps_dt) AS next_dt,
+                            lead(g.latitude, 1) OVER (ORDER BY g.flight_id, g.gps_dt) AS next_lat,
+                            lead(g.longitude, 1) OVER (ORDER BY g.flight_id, g.gps_dt) AS next_lon,
+                            lead(g.altitude, 1) OVER (ORDER BY g.flight_id, g.gps_dt) AS next_alt,
+                            g.effort
+                           FROM g) q2 ON p.flight_id::text = q2.flight_id AND p.hotspot_dt >= q2.prev_dt AND p.hotspot_dt <= q2.next_dt
+                  WHERE p.gps_dt IS NULL) interp
+        UNION
+         SELECT y.hotspot_id,
+            y.flight_id,
+            y.camera_id,
+            y.hotspot_dt,
+            y.hotspot_found,
+            y.hotspot_type,
+            y.slr_image,
+            y.thermal_image,
+            y.species,
+            y.species_conf,
+            y.gross_age,
+            y.gross_age_conf,
+            y.num_seals,
+            y.species_user,
+            y.gps_dt,
+            y.latitude,
+            y.longitude,
+            y.altitude,
+            y.effort,
+            y.interp
+           FROM y
+        )
+ SELECT final.hotspot_id,
+    final.flight_id,
+    final.camera_id,
+    final.hotspot_dt,
+    final.hotspot_found,
+    final.hotspot_type,
+    final.slr_image,
+    final.thermal_image,
+    final.species,
+    final.species_conf,
+    final.gross_age,
+    final.gross_age_conf,
+    final.num_seals,
+    final.species_user,
+    final.gps_dt,
+    final.latitude,
+    final.longitude,
+    final.altitude,
+    final.effort,
+    final.interp,
+    st_setsrid(st_makepoint(final.longitude::double precision, final.latitude::double precision), 4326) AS geom
+   FROM final
+  ORDER BY final.flight_id, final.hotspot_dt;
+  
+ALTER TABLE surv_boss.geo_hotspots
+ADD COLUMN detect_method CHARACTER VARYING(50);
+  
+update surv_boss.geo_hotspots h
+set detect_method = d.detect_method
+from surv_boss.tbl_hotspot_detect d
+where d.hotspot_id = h.hotspot_id

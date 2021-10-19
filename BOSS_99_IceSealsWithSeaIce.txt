@@ -1,0 +1,4 @@
+SELECT * , cast(gps_dt as date), st_value(rast, st_transform(geom, 3338))
+FROM surv_boss.hotspot 
+INNER JOIN environ.tbl_sic_cdr_conc_2012
+ON cast(gps_dt as date) = cast(fdate as date)

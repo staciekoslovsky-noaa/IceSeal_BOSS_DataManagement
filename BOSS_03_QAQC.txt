@@ -1,0 +1,162 @@
+SELECT hotspot_id
+FROM surv_boss.tbl_hotspot_detect
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) > 1;
+
+SELECT hotspot_id
+FROM surv_boss.tbl_hotspot_match
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) > 1;
+
+SELECT hotspot_id
+FROM surv_boss.tbl_hotspot_detect_redo
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) > 1;
+
+SELECT m.* 
+FROM surv_boss.tbl_hotspot_detect d
+FULL JOIN surv_boss.tbl_hotspot_match m
+USING (hotspot_id)
+WHERE d.hotspot_id IS NULL
+ORDER BY slr_image;
+
+SELECT d.* 
+FROM surv_boss.tbl_hotspot_detect d
+FULL JOIN surv_boss.tbl_hotspot_match m
+USING (hotspot_id)
+WHERE m.hotspot_id IS NULL
+ORDER BY flight_id;
+
+SELECT d.* 
+FROM surv_boss.tbl_hotspot_detect d
+FULL JOIN surv_boss.tbl_species_id s
+USING (hotspot_id)
+WHERE d.hotspot_id IS NULL
+ORDER BY flight_id;
+
+SELECT r.* 
+FROM surv_boss.tbl_hotspot_detect d
+FULL JOIN surv_boss.tbl_hotspot_detect_redo r
+USING (hotspot_id)
+WHERE d.hotspot_id IS NULL
+ORDER BY flight_id;
+
+SELECT m.* 
+FROM surv_boss.tbl_hotspot_match m
+FULL JOIN surv_boss.tbl_species_id s
+USING (hotspot_id)
+WHERE s.hotspot_id IS NULL
+ORDER BY hotspot_id;
+
+SELECT DISTINCT flight_id
+FROM surv_boss.tbl_hotspot_detect_redo
+ORDER BY flight_id;
+
+SELECT hotspot_id, COUNT(hotspot_id)
+FROM surv_boss.tbl_hotspot_match
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) > 1
+ORDER BY COUNT(hotspot_id);
+
+SELECT hotspot_id, COUNT(hotspot_id)
+FROM surv_boss.tbl_species_id
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) > 1
+ORDER BY COUNT(hotspot_id);
+
+SELECT * FROM surv_boss.tbl_hotspot_detect
+INNER JOIN surv_boss.tbl_hotspot_match
+USING (hotspot_id)
+WHERE slr_match IS NULL;
+
+SELECT hotspot_id, COUNT(hotspot_id)
+FROM surv_boss.tbl_species_id
+GROUP BY hotspot_id
+HAVING COUNT(hotspot_id) = 1;
+
+SELECT * FROM surv_boss.tbl_hotspot_match
+WHERE slr_match IS NOT NULL
+AND hotspot_id NOT IN (SELECT hotspot_id FROM surv_boss.tbl_species_id)
+AND hotspot_found = 'yes'
+AND hotspot_type IS NULL;
+
+!!3 new for Gavin
+SELECT * FROM surv_boss.tbl_hotspot_match
+LEFT JOIN surv_boss.tbl_hotspot_detect
+USING (hotspot_id)
+WHERE (slr_match IS NULL OR slr_match = 'no')
+--AND hotspot_id NOT IN (SELECT hotspot_id FROM surv_boss.tbl_species_id)
+AND slr_image IS NOT NULL;
+
+SELECT * 
+FROM surv_boss.tbl_hotspot_match
+LEFT JOIN surv_boss.tbl_hotspot_detect
+USING (hotspot_id)
+WHERE (hotspot_found IS NULL OR hotspot_found = 'no')
+AND hotspot_id NOT IN (SELECT hotspot_id FROM surv_boss.tbl_species_id)
+AND hotspot_type IS NOT NULL 
+AND hotspot_type <> 'seal_evidence';
+
+
+SELECT hotspot_id, slr_match, slr_image, hotspot_type, num_seals, species_id, species_conf, gross_age, gross_age_conf, hotspot_dt
+FROM surv_boss.tbl_hotspot_match m
+LEFT JOIN surv_boss.tbl_hotspot_detect
+USING (hotspot_id)
+WHERE slr_match IS NOT NULL
+AND hotspot_id NOT IN (SELECT hotspot_id FROM surv_boss.tbl_species_id)
+AND (species_id IS NULL
+	OR num_seals IS NULL
+	OR fog IS NULL
+    OR match_uncertainty IS NULL
+    OR slr_data IS NULL
+    OR (species_conf IS NULL AND species_id <> 'unk')
+    OR gross_age IS NULL
+    OR (gross_age_conf IS NULL AND gross_age <> 'ND')
+	OR slr_image IS NULL )
+AND hotspot_type = 'seal';
+
+SELECT hotspot_id, slr_match, slr_image, hotspot_type, num_seals, species_id, species_conf, gross_age, gross_age_conf, hotspot_dt
+FROM surv_boss.tbl_hotspot_match m
+LEFT JOIN surv_boss.tbl_hotspot_detect
+USING (hotspot_id)
+WHERE slr_match IS NOT NULL
+AND hotspot_id NOT IN (SELECT hotspot_id FROM surv_boss.tbl_species_id)
+AND ((species_id IS NOT NULL AND species_ID <> 'wal' AND species_ID <> 'ssl' AND species_ID <> 'nfs')
+	OR (num_seals IS NOT NULL and num_seals <> '0')
+    OR (species_conf IS NOT NULL AND (species_id IS NOT NULL AND species_ID <> 'wal' AND species_ID <> 'ssl' AND species_ID <> 'nfs')) 
+    OR gross_age IS NOT NULL
+    OR gross_age_conf IS NOT NULL
+	OR slr_image IS NULL )
+AND hotspot_type <> 'seal';
+
+SELECT *
+FROM surv_boss.tbl_hotspot_match
+WHERE (hotspot_type = 'seal'
+AND species_id <> 'rn' 
+AND species_id <> 'sd' 
+AND species_id <> 'bd' 
+AND species_id <> 'rd' 
+AND species_id <> 'unk')
+OR
+(hotspot_type <> 'seal'
+AND (species_id = 'rn' 
+OR species_id = 'sd' 
+OR species_id = 'bd' 
+OR species_id = 'rd'))
+!!end new for Gavin
+
+SELECT * FROM 
+(SELECT DISTINCT flight_id, camera_id, COUNT(detect_method) as manual_count
+FROM surv_boss.tbl_hotspot_detect
+WHERE detect_method = 'manual'
+GROUP BY flight_id, camera_id) m
+FULL JOIN
+(SELECT DISTINCT flight_id, camera_id, COUNT(detect_method) as skeyes_count
+FROM surv_boss.tbl_hotspot_detect
+ WHERE detect_method = 'skeyes_2.0'
+ GROUP BY flight_id, camera_id
+) as s
+USING (flight_id, camera_id)
+WHERE manual_count IS NOT NULL
+AND skeyes_count IS NOT NULL;
+
