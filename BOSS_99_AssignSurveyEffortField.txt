@@ -1,0 +1,35 @@
+-------------------------Update FMC Log with Survey Effort
+UPDATE surv_boss.tbl_fmc_log
+SET survey_effort = NULL;
+
+UPDATE surv_boss.tbl_fmc_log
+SET survey_effort = 'standard_overPackIce'
+WHERE 
+--2012 survey data
+date_utc <= '2012-05-08'
+OR flight_id = 'OtterFl15' AND date_utc <= '2012-05-09'
+--2013 survey data
+OR (date_utc <= '2013-05-06' and date_utc > '2013-01-01')
+OR (flight_id = 'OtterFl17' and date_utc <= '2013-05-07');
+
+UPDATE surv_boss.tbl_fmc_log
+SET survey_effort = 'zigzag_overFastIce'
+WHERE survey_effort IS NULL OR survey_effort = '';
+
+-------------------------Update geo_hotspots with Survey Effort
+UPDATE surv_boss.geo_hotspots
+SET survey_effort = NULL;
+
+UPDATE surv_boss.geo_hotspots
+SET survey_effort = 'standard_overPackIce'
+WHERE 
+--2012 survey data
+hotspot_dt <= '2012-05-08'
+OR flight_id = '12_OtterFl15'
+--2013 survey data
+OR (hotspot_dt <= '2013-05-06' and hotspot_dt > '2013-01-01')
+OR flight_id = '13_OtterFl17';
+
+UPDATE surv_boss.geo_hotspots
+SET survey_effort = 'zigzag_overFastIce'
+WHERE survey_effort IS NULL OR survey_effort = '';
