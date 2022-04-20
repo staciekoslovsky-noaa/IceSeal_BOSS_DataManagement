@@ -28,7 +28,7 @@ RPostgreSQL::dbSendQuery(con, "DELETE FROM surv_boss.tbl_detections_processed_rg
 processed_id <- RPostgreSQL::dbGetQuery(con, "SELECT max(id) FROM surv_boss.tbl_detections_processed_rgb")
 processed_id$max <- ifelse(length(processed_id) == 0, 0, processed_id$max)
 
-processed <- read.csv(processed_file, header = FALSE, stringsAsFactors = FALSE, col.names = c("detection", "image_name", "frame_number", "bound_left", "bound_bottom", "bound_right", "bound_top", "score", "length", "detection_type", "type_score"))
+processed <- read.csv(processed_file, header = FALSE, stringsAsFactors = FALSE, col.names = c("detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score"))
 processed <- processed %>%
   #mutate(image_name = sapply(strsplit(image_name, split= "\\/"), function(x) x[length(x)])) %>%
   mutate(id = 1:n() + processed_id$max) %>%
@@ -37,7 +37,7 @@ processed <- processed %>%
   mutate(reviewer = reviewer) %>%
   mutate(camera_view = sapply(strsplit(image_name, split= "\\_"), function(x) x[3])) %>%
   mutate(detection_id = paste("boss", flight, camera_view, detection, sep = "_")) %>%
-  select("id", "detection", "image_name", "frame_number", "bound_left", "bound_bottom", "bound_right", "bound_top", "score", "length", "detection_type", "type_score", "flight", "camera_view", "detection_id", "reviewer", "detection_file")
+  select("id", "detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score", "flight", "camera_view", "detection_id", "reviewer", "detection_file")
 
 rm(processed_id)
 
