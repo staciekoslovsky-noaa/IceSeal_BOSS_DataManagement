@@ -6,8 +6,8 @@ library(tidyverse)
 library(RPostgreSQL)
 
 # Set variables for processing
-wd <- "C:/Users/stacie.hardy/Work/Work/Projects/AS_Detections/Data/BOSS_BoundingBoxes"
-processed_file <- "boss_yolo_eo_20190809_updated_SKH.csv"
+wd <- "C:/Users/stacie.hardy/Work/Work/Projects/AS__Annotations/Data/BOSS_BoundingBoxes"
+processed_file <- "boss_yolo_eo_20190809_updated_SKH_GMB.csv"
 reviewer <- "GMB"
 
 # Set up working environment
