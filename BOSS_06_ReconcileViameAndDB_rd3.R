@@ -36,8 +36,9 @@ con <- RPostgres::dbConnect(Postgres(),
                             dbname = Sys.getenv("pep_db"), 
                             host = Sys.getenv("pep_ip"), 
                             port = Sys.getenv("pep_port"),
-                            user = Sys.getenv("pep_user"), 
-                            password = rstudioapi::askForPassword(paste("Enter your DB password for user account: ", Sys.getenv("pep_user"), sep = "")))
+                            user = Sys.getenv("pep_user"),
+                            password = Sys.getenv("user_pw"))
+                            #password = rstudioapi::askForPassword(paste("Enter your DB password for user account: ", Sys.getenv("pep_user"), sep = "")))
 
 sightings_db <- RPostgres::dbGetQuery(con, "SELECT hotspot_id, species, num_seals FROM surv_boss.geo_hotspots WHERE hotspot_type = \'seal\'")
 images_db <- RPostgres::dbGetQuery(con, "SELECT DISTINCT hotspot_id, slr_image FROM surv_boss.tbl_hotspot_match WHERE hotspot_type = \'seal\'")
@@ -73,7 +74,8 @@ to_add <- data %>%
   full_join(sightings_db, by = c("hotspot_id", "slr_image")) %>%
   mutate(num_seals_bb = ifelse(is.na(num_seals_bb), 0, num_seals_bb)) %>%
   filter(num_seals > num_seals_bb) %>%
-  mutate(num_missing = num_seals - num_seals_bb)
+  mutate(num_missing = num_seals - num_seals_bb) %>%
+  ungroup()
 rm(sightings_db)
   
 to_add2 <- to_add %>%
@@ -128,8 +130,8 @@ data <- data %>%
 images <- images$slr_image
 
 # Export final datasets
-write.table(images, "C:/skh/boss_seals_imageList_20220425_4bbEdit.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
-write.table(data, "C:/skh/boss_seals_detectionsRGB_20220425_4bbEdit.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(images, "C:/skh/boss_seals_imageList_20220514_4bbEdit_correction.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(data, "C:/skh/boss_seals_detectionsRGB_20220514_4bbEdit_correction.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote = FALSE)
 
 # Disconnect from DB
 RPostgres::dbDisconnect(con)
