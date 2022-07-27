@@ -1,0 +1,69 @@
+--ALTER TABLE surv_boss.tbl_images
+--ADD COLUMN ml_imagestatus varchar(50);
+
+UPDATE surv_boss.tbl_images
+SET ml_imagestatus = NULL;
+
+UPDATE surv_boss.tbl_images
+SET ml_imagestatus = 'test'
+WHERE rgb_manualreview = 'Y';
+
+--Based on manual review, needed 29 spotted seals, 23 ribbon seals, and 128 pups to add to the test dataset
+SELECT SETSEED(0.29);
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'test'
+WHERE image_name IN (SELECT image_name 
+                     FROM surv_boss.tbl_images
+                     LEFT JOIN (SELECT DISTINCT image_name, detection_type FROM surv_boss.tbl_detections_processed_rgb) d
+                     USING (image_name)
+                     WHERE detection_type LIKE '%pup' AND ml_imagestatus IS NULL and image_type = 'rgb_image'
+                     ORDER BY random() 
+                     LIMIT 112); --needed # frames to get to 128 pups to achieve the 10% of pups
+
+SELECT SETSEED(0.29);
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'test'
+WHERE image_name IN (SELECT image_name 
+                     FROM surv_boss.tbl_images
+                     LEFT JOIN (SELECT DISTINCT image_name, detection_type FROM surv_boss.tbl_detections_processed_rgb) d
+                     USING (image_name)
+                     WHERE detection_type = 'spotted_seal' AND ml_imagestatus IS NULL and image_type = 'rgb_image'
+                     ORDER BY random() 
+                     LIMIT 4); --only needed 4 frames to get 29 additional spotted seals to achieve the 50 total spotted seals
+                     
+SELECT SETSEED(0.29);
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'test'
+WHERE image_name IN (SELECT image_name 
+                     FROM surv_boss.tbl_images
+                     LEFT JOIN (SELECT DISTINCT image_name, detection_type FROM surv_boss.tbl_detections_processed_rgb) d
+                     USING (image_name)
+                     WHERE detection_type = 'ribbon_seal' AND ml_imagestatus IS NULL and image_type = 'rgb_image'
+                     ORDER BY random() 
+                     LIMIT 23); --needed all 23 frames to get 23 additional ribbon seals to achieve the 30 total ribbon seals
+
+SELECT detection_type, count(detection_type)
+FROM surv_boss.tbl_detections_processed_rgb
+WHERE image_name in (SELECT image_name from surv_boss.tbl_images WHERE ml_imagestatus = 'test')
+GROUP BY detection_type;
+
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'training'
+WHERE image_name IN (SELECT image_name 
+                     FROM surv_boss.tbl_detections_processed_rgb
+                     WHERE detection_type LIKE '%seal' OR detection_type LIKE '%pup')
+AND image_type = 'rgb_image' 
+AND ml_imagestatus IS NULL; 
+
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'background'
+WHERE image_type = 'rgb_image' 
+AND ml_imagestatus IS NULL; 
+
+UPDATE surv_boss.tbl_images i
+SET ml_imagestatus = 'NA'
+WHERE image_type = 'ir_image'; 
+
+SELECT ml_imagestatus, image_type, count(ml_imagestatus)
+FROM surv_boss.tbl_images
+GROUP BY ml_imagestatus, image_type;

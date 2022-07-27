@@ -7,7 +7,7 @@ library(RPostgreSQL)
 
 # Set variables for processing
 wd <- "C:/Users/stacie.hardy/Work/Work/Projects/AS__Annotations/Data/BOSS_BoundingBoxes"
-processed_file <- "boss_yolo_eo_20190809_updated_SKH_GMB.csv"
+processed_file <- "boss_seals_detectionsRGB_20220514_4import_20220622_SKH.csv"
 reviewer <- "GMB"
 
 # Set up working environment
@@ -18,7 +18,7 @@ con <- RPostgreSQL::dbConnect(PostgreSQL(),
                               host = Sys.getenv("pep_ip"), 
                               #port = Sys.getenv("pep_port"), 
                               user = Sys.getenv("pep_admin"), 
-                              rstudioapi::askForPassword(paste("Enter your DB password for user account: ", Sys.getenv("pep_admin"), sep = "")))
+                              password = Sys.getenv("admin_pw"))
 
 # Delete data from tables
 RPostgreSQL::dbSendQuery(con, "DELETE FROM surv_boss.tbl_detections_processed_rgb")
@@ -26,9 +26,10 @@ RPostgreSQL::dbSendQuery(con, "DELETE FROM surv_boss.tbl_detections_processed_rg
 # Import data and process
 ## PROCESSED DATA
 processed_id <- RPostgreSQL::dbGetQuery(con, "SELECT max(id) FROM surv_boss.tbl_detections_processed_rgb")
-processed_id$max <- ifelse(length(processed_id) == 0, 0, processed_id$max)
+processed_id$max <- ifelse(length(processed_id) == 0 | is.na(processed_id), 0, processed_id$max)
 
-processed <- read.csv(processed_file, header = FALSE, stringsAsFactors = FALSE, col.names = c("detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score"))
+processed <- read.csv(processed_file, header = FALSE, stringsAsFactors = FALSE, 
+                      col.names = c("detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score", "hotspot_id"))
 processed <- processed %>%
   #mutate(image_name = sapply(strsplit(image_name, split= "\\/"), function(x) x[length(x)])) %>%
   mutate(id = 1:n() + processed_id$max) %>%
@@ -37,7 +38,8 @@ processed <- processed %>%
   mutate(reviewer = reviewer) %>%
   mutate(camera_view = sapply(strsplit(image_name, split= "\\_"), function(x) x[3])) %>%
   mutate(detection_id = paste("boss", flight, camera_view, detection, sep = "_")) %>%
-  select("id", "detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score", "flight", "camera_view", "detection_id", "reviewer", "detection_file")
+  mutate(hotspot_id = as.integer(gsub("\\(trk-atr\\) hotspot_id *", "", hotspot_id))) %>%
+  select("id", "detection", "image_name", "frame_number", "bound_left", "bound_top", "bound_right", "bound_bottom", "score", "length", "detection_type", "type_score", "flight", "camera_view", "detection_id", "reviewer", "detection_file", "hotspot_id")
 
 rm(processed_id)
 

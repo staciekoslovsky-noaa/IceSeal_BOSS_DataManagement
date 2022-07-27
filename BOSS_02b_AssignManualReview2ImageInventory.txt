@@ -1,0 +1,10 @@
+ALTER TABLE surv_boss.tbl_images
+ADD COLUMN rgb_manualreview varchar(30);
+
+UPDATE surv_boss.tbl_images
+SET rgb_manualreview = 'Y'
+WHERE image_name IN (SELECT image_name FROM surv_boss.tbl_manual_review);
+
+UPDATE surv_boss.tbl_images
+SET rgb_manualreview = 'N'
+WHERE rgb_manualreview IS NULL;
