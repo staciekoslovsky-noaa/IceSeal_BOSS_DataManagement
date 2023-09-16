@@ -22,7 +22,7 @@ Other code in the repository includes:
 * Code for comparing checksums across data in different locations (to evaluate if data are truly duplicates):
 	* BOSS_99_CompareCheckSums_Polar2-3.R
 * Code for preparing data for possible Kaggle competition:
-	* BOSS_99_Data4Kaggle2012.R
+	* BOSS_99_Data4Kaggle2012.Rs
 	* BOSS_99_Data4Kaggle2013.R
 * Code for machine learning processing to generate bounding boxes for all known seals:
 	* BOSS_99_Data4MachineLearning_a_IdentifyTrainingImages.txt
